@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Photo Booth</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f2f5;
+            padding: 20px;
+        }
+
+        .container {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .box {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        video,
+        canvas {
+            width: 400px;
+            height: 300px;
+            background-color: #333;
+            border-radius: 4px;
+            object-fit: cover;
+        }
+
+        button {
+            margin-top: 15px;
+            padding: 10px 20px;
+            font-size: 16px;
+            color: white;
+            background-color: #007bff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>📸 My Web Photo Booth</h1>
+
+    <div class="container">
+        <!-- ฝั่งกล้องสด -->
+        <div class="box">
+            <h3>Live Preview</h3>
+            <video id="webcam" autoplay playsinline></video>
+            <br>
+            <button id="snap-btn">📸 ถ่ายรูป!</button>
+        </div>
+
+        <!-- ฝั่งรูปที่ถ่ายเสร็จแล้ว -->
+        <div class="box">
+            <h3>Captured Photo</h3>
+            <canvas id="photo-canvas"></canvas>
+            <br>
+            <a id="download-link" download="photobooth.png">
+                <button style="background-color: #28a745;">💾 ดาวน์โหลดรูป</button>
+            </a>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('photo-canvas');
+        const snapBtn = document.getElementById('snap-btn');
+        const downloadLink = document.getElementById('download-link');
+        const ctx = canvas.getContext('2d');
+
+        // 1. ฟังก์ชันเปิดกล้อง
+        async function initCamera() {
+            try {
+                // ขออนุญาตเปิดกล้อง (กำหนดความละเอียดภาพ)
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 1280, height: 720 },
+                    audio: false
+                });
+
+                // ส่ง Stream จากกล้องเข้าสู่ตัว <video>
+                video.srcObject = stream;
+            } catch (err) {
+                console.error("เกิดข้อผิดพลาดในการเข้าถึงกล้อง: ", err);
+                alert("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตให้เว็บเข้าถึงกล้องก่อนนะครับ");
+            }
+        }
+
+        // 2. ฟังก์ชันถ่ายรูป (ดึงภาพจาก Video ลง Canvas)
+        snapBtn.addEventListener('click', () => {
+            // ตั้งค่าขนาด Canvas ให้เท่ากับขนาดวิดีโอจริงที่ส่งมา
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            // วาดภาพจาก <video> ลงบน <canvas> ณ วินาทีนั้น
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // แปลงภาพใน canvas เป็น Data URL เพื่อให้ดาวน์โหลดได้
+            const imageDataUrl = canvas.toDataURL('image/png');
+            downloadLink.href = imageDataUrl;
+        });
+
+        // เริ่มทำงานเปิดกล้องทันทีที่โหลดหน้าเว็บ
+        initCamera();
+
+        // 1. สร้าง Object Image สำหรับโหลดกรอบรูปเตรียมไว้ล่วงหน้า
+        const frameImage = new Image();
+        frameImage.src = 'path/to/your/frame.png'; // เปลี่ยนเป็น Path ของไฟล์กรอบรูป PNG ของคุณ (ต้องเป็นพื้นหลังทะลุ)
+
+        // 2. ฟังก์ชันถ่ายรูปและแปะกรอบ
+        snapBtn.addEventListener('click', () => {
+            // ตั้งค่าขนาด Canvas ให้เท่ากับขนาดวิดีโอ
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            // [เลเยอร์ที่ 1] วาดภาพคนจากหน้าจอกล้องลงไปก่อน
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // [เลเยอร์ที่ 2] วาดกรอบรูป PNG ทับลงไปข้างบน
+            // สั่งให้วาดเต็มความกว้างและความสูงของ Canvas เพื่อให้พอดีกับรูปถ่าย
+            ctx.drawImage(frameImage, 0, 0, canvas.width, canvas.height);
+
+            // แปลงภาพรวมทั้งหมดใน canvas เป็น Data URL เพื่อให้ดาวน์โหลดได้
+            const imageDataUrl = canvas.toDataURL('image/png');
+            downloadLink.href = imageDataUrl;
+        });
+    </script>
+</body>
+
+</html>
