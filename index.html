@@ -1,16 +1,20 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>⚡ Advanced AI Photo Booth</title>
-    
+    <title>Photo Booth for LDR</title>
+
     <!-- โหลด MediaPipe สำหรับตรวจจับมือด้วย AI -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
     <style>
-        * { box-sizing: border-box; }
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
@@ -20,28 +24,30 @@
             padding: 10px;
             margin: 0;
         }
-        h1 { font-size: 1.8rem; margin: 15px 0; color: #333; }
-        
-        /* Responsive Layout ด้วย Flexbox และ Media Queries */
+
+        h1 {
+            font-size: 1.8rem;
+            margin: 15px 0;
+            color: #333;
+        }
+
+        /* จัดให้อยู่คนละบรรทัดเสมอไม่ว่าจะจอคอมหรือจอมือถือ แต่ยืดหยุ่นตามหน้าจอ */
         .container {
             display: flex;
             flex-direction: column;
             gap: 20px;
             width: 100%;
-            max-width: 1000px;
+            max-width: 600px;
             justify-content: center;
-        }
-        @media (min-width: 768px) {
-            .container { flex-direction: row; }
         }
 
         .box {
             background: white;
             padding: 15px;
             border-radius: 12px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
             text-align: center;
-            flex: 1;
+            width: 100%;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -58,8 +64,10 @@
             overflow: hidden;
         }
 
-        /* ซ่อนวิดีโอจริงไว้เบื้องหลัง (เพราะเราจะเอาภาพจากวิดีโอมาวาดลงวิดีโอแคนวาสเพื่อทำระบบกระจก) */
-        video { display: none; }
+        /* ซ่อนวิดีโอจริงไว้เบื้องหลัง */
+        video {
+            display: none;
+        }
 
         .booth-canvas {
             width: 100%;
@@ -68,7 +76,12 @@
         }
 
         /* แคนวาสไลฟ์สดให้กลับด้านซ้ายขวา (Mirror) เพื่อให้วาดรูปตามมือได้เป็นธรรมชาติ */
-        #live-canvas { transform: scaleX(-1); }
+        #live-canvas {
+            transform: scaleX(-1);
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
 
         .toolbar {
             margin-top: 10px;
@@ -78,30 +91,73 @@
             justify-content: center;
         }
 
-        button {
+        /* ปรับสไตล์ปุ่มหลัก */
+        button, .custom-btn {
             padding: 10px 16px;
             font-size: 14px;
             font-weight: bold;
             color: white;
-            background-color: #007bff;
+            background-color: #6c757d; /* เริ่มต้นโหมดปิด (สีเทา) */
             border: none;
             border-radius: 6px;
             cursor: pointer;
             transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
         }
-        button:hover { background-color: #0056b3; }
-        button.active { background-color: #dc3545; } /* สีแดงเมื่อโหมดวาดเปิดอยู่ */
-        
-        .btn-success { background-color: #28a745; }
-        .btn-success:hover { background-color: #218838; }
-        .btn-secondary { background-color: #6c757d; }
-        .btn-secondary:hover { background-color: #5a6268; }
+
+        button:hover, .custom-btn:hover {
+            opacity: 0.9;
+        }
+
+        /* เมื่อเปิดโหมดวาดรูปจะเป็นสีน้ำเงิน */
+        .custom-btn.active {
+            background-color: #007bff;
+        }
+
+        /* ซ่อนตัวเลือกสีของระบบไว้แอบๆ ไม่ให้บังปุ่ม */
+        #custom-color {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            border: 0;
+        }
+
+        /* วงกลมเล็กๆ เพื่อโชว์เฉดสีปัจจุบันบนปุ่ม */
+        .color-preview-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            margin-left: 8px;
+            border: 1px solid white;
+            display: inline-block;
+        }
+
+        .btn-success {
+            background-color: #28a745;
+        }
+        .btn-success:hover {
+            background-color: #218838;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+        }
+        .btn-secondary:hover {
+            background-color: #5a6268;
+        }
     </style>
 </head>
+
 <body>
 
     <h1>📸 My AI Web Photo Booth</h1>
-    
+
     <div class="container">
         <!-- ฝั่งกล้องสด + AI ตรวจจับนิ้วมือ -->
         <div class="box">
@@ -110,11 +166,17 @@
                 <video id="webcam" autoplay playsinline muted></video>
                 <canvas id="live-canvas"></canvas>
             </div>
-            
+
             <div class="toolbar">
-                <button id="draw-mode-btn" class="btn-secondary">🖌️ โหมดวาดรูป: ปิดอยู่</button>
+                <!-- ปุ่มแบบ Custom ที่แยกการทำงานเปิดโหมด / เลือกสี ด้วยเงื่อนไข JS -->
+                <div id="draw-mode-btn" class="custom-btn">
+                    <span id="btn-text">🖌️ โหมดวาดรูป: ปิดอยู่</span>
+                    <span id="color-preview" class="color-preview-dot" style="background-color: #00f2fe; display: none;"></span>
+                    <input type="color" id="custom-color" value="#00f2fe">
+                </div>
+
                 <button id="clear-btn" class="btn-secondary">🗑️ ลบเส้นวาด</button>
-                <button id="snap-btn">📸 ถ่ายรูป!</button>
+                <button id="snap-btn" class="btn-success">📸 ถ่ายรูป!</button>
             </div>
         </div>
 
@@ -124,7 +186,7 @@
             <div class="view-wrapper">
                 <canvas id="photo-canvas" class="booth-canvas"></canvas>
             </div>
-            
+
             <div class="toolbar">
                 <button id="download-btn" class="btn-success">💾 ดาวน์โหลดรูปภาพ</button>
             </div>
@@ -139,19 +201,25 @@
         const photoCtx = photoCanvas.getContext('2d');
 
         const snapBtn = document.getElementById('snap-btn');
-        const drawModeBtn = document.getElementById('draw-mode-btn');
         const clearBtn = document.getElementById('clear-btn');
         const downloadBtn = document.getElementById('download-btn');
+
+        // ส่วนประกอบของปุ่มรวมร่างที่ปรับตรรกะใหม่
+        const drawModeBtn = document.getElementById('draw-mode-btn');
+        const btnText = document.getElementById('btn-text');
+        const colorPreview = document.getElementById('color-preview');
+        const customColorInput = document.getElementById('custom-color');
 
         // การตั้งค่าสถานะระบบ
         let isDrawMode = false;
         let isDrawing = false;
-        let drawingPoints = []; // เก็บพิกัดเส้นวาด [{x, y, isNewStroke}]
+        let drawingPoints = [];
+        let currentColor = '#00f2fe'; 
 
-        // โหลดกรอบรูปเตรียมไว้ (เปลี่ยนชื่อไฟล์ตามกรอบรูปของคุณ)
+        // โหลดกรอบรูปเตรียมไว้
         const frameImage = new Image();
-        frameImage.src = 'frame.png'; 
-        frameImage.crossOrigin = "anonymous"; // ป้องกันปัญหาดาวน์โหลดไม่ได้จาก CORS
+        frameImage.src = 'frame.png';
+        frameImage.crossOrigin = "anonymous"; 
 
         // 1. ระบบวาดเส้นและการตรวจจับนิ้วมือด้วย MediaPipe
         const hands = new Hands({
@@ -165,29 +233,22 @@
             minTrackingConfidence: 0.5
         });
 
-        // เมื่อ AI ประมวลผลภาพจากกล้องเสร็จในแต่ละเฟรม
         hands.onResults((results) => {
-            // ตั้งค่าขนาดแคนวาสไลฟ์สดตามขนาดวิดีโอจริง
-            if (liveCanvas.width !== video.videoWidth) {
+            if (liveCanvas.width !== video.videoWidth && video.videoWidth > 0) {
                 liveCanvas.width = video.videoWidth;
                 liveCanvas.height = video.videoHeight;
             }
 
             liveCtx.save();
-            // วาดภาพวิดีโอสดลงไปก่อน
             liveCtx.drawImage(results.image, 0, 0, liveCanvas.width, liveCanvas.height);
 
-            // ตรวจจับพิกัดนิ้วชี้
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const landmarks = results.multiHandLandmarks[0];
-                // พิกัดข้อปลายนิ้วชี้คือตำแหน่ง index ที่ 8 ของข้อต่อมือ
-                const indexFingerTip = landmarks[8]; 
+                const indexFingerTip = landmarks[8];
 
-                // แปลงพิกัดสัดส่วน (0 ถึง 1) ให้เป็นพิกัดพิกเซลจริงบนแคนวาส
                 const x = indexFingerTip.x * liveCanvas.width;
                 const y = indexFingerTip.y * liveCanvas.height;
 
-                // วาดจุดสีแดงนำสายตาตรงปลายนิ้วชี้เพื่อบอกตำแหน่งปัจจุบัน
                 liveCtx.fillStyle = '#ff0000';
                 liveCtx.beginPath();
                 liveCtx.arc(x, y, 10, 0, 2 * Math.PI);
@@ -195,44 +256,47 @@
 
                 if (isDrawMode) {
                     if (!isDrawing) {
-                        // เริ่มลากเส้นใหม่เมื่อนิ้วเข้ามาในจอครั้งแรก
-                        drawingPoints.push({ x, y, isNewStroke: true });
+                        drawingPoints.push({ x, y, isNewStroke: true, color: currentColor });
                         isDrawing = true;
                     } else {
-                        // เก็บพิกัดลากเส้นต่อ
-                        drawingPoints.push({ x, y, isNewStroke: false });
+                        drawingPoints.push({ x, y, isNewStroke: false, color: currentColor });
                     }
                 }
             } else {
-                // ถ้ายกมือออกจากกล้อง ให้หยุดเส้นปัจจุบันไว้
-                isDrawing = false;
+                isDrawing = false; 
             }
 
-            // วาดลายเส้นทั้งหมดที่ผู้ใช้เคยลากไว้ทับลงบนจอ Live Preview
             drawLines(liveCtx);
             liveCtx.restore();
         });
 
-        // ฟังก์ชันสำหรับวาดลายเส้น
         function drawLines(context) {
-            context.strokeStyle = '#00f2fe'; // สีของเส้นพู่กัน (ฟ้าสะท้อนแสง)
+            if (drawingPoints.length === 0) return;
+
             context.lineWidth = 8;
             context.lineCap = 'round';
             context.lineJoin = 'round';
 
-            for (let i = 0; i < drawingPoints.length; i++) {
+            context.beginPath();
+            context.moveTo(drawingPoints[0].x, drawingPoints[0].y);
+
+            for (let i = 1; i < drawingPoints.length; i++) {
                 const pt = drawingPoints[i];
+                
                 if (pt.isNewStroke) {
                     context.beginPath();
                     context.moveTo(pt.x, pt.y);
                 } else {
+                    context.beginPath();
+                    context.moveTo(drawingPoints[i-1].x, drawingPoints[i-1].y);
                     context.lineTo(pt.x, pt.y);
+                    context.strokeStyle = pt.color; 
                     context.stroke();
                 }
             }
         }
 
-        // 2. เริ่มต้นเปิดกล้องและเชื่อมต่อกับ AI
+        // 2. เริ่มต้นเปิดกล้อง
         const camera = new Camera(video, {
             onFrame: async () => {
                 await hands.send({ image: video });
@@ -241,78 +305,85 @@
             height: 480
         });
         camera.start().catch(err => {
-            alert("ไม่สามารถเปิดกล้องได้ กรุณาใช้ผ่าน HTTPS หรือ localhost และอนุญาตสิทธิ์กล้องด้วยครับ");
+            alert("ไม่สามารถเปิดกล้องได้");
         });
 
-        // 3. ปุ่มกดสลับโหมดวาดรูป
-        drawModeBtn.addEventListener('click', () => {
-            isDrawMode = !isDrawMode;
-            if (isDrawMode) {
-                drawModeBtn.textContent = "🖌️ โหมดวาดรูป: เปิดอยู่";
-                drawModeBtn.className = "active";
+        // 3. 💡 ตรรกะใหม่ตามที่ต้องการ: กดทีแรกเปิดโหมด กดอีกทีเลือกสี
+        drawModeBtn.addEventListener('click', (e) => {
+            // ป้องกันไม่ให้การคลิกทะลุไปโดน input ตัวเลือกสีในจังหวะแรก
+            if (e.target === customColorInput) return;
+
+            if (!isDrawMode) {
+                // กดครั้งที่ 1 (เมื่อโหมดปิดอยู่): ทำการเปิดโหมดวาดรูป
+                isDrawMode = true;
+                drawModeBtn.classList.add('active');
+                btnText.textContent = "🎨 คลิกอีกครั้งเพื่อเลือกสี";
+                colorPreview.style.display = "inline-block"; // โชว์จุดสีปัจจุบัน
             } else {
-                drawModeBtn.textContent = "🖌️ โหมดวาดรูป: ปิดอยู่";
-                drawModeBtn.className = "btn-secondary";
-                isDrawing = false; // รีเซ็ตการลากเส้น
+                // กดครั้งที่ 2 (เมื่อโหมดเปิดอยู่แล้ว): ทำการเปิดหน้าต่าง Color Picker ของระบบขึ้นมา
+                customColorInput.click();
             }
         });
 
-        // ลบเส้นที่วาดทั้งหมด
+        // เมื่อผู้ใช้เลือกสีจากหน้าต่างเสร็จแล้ว
+        customColorInput.addEventListener('input', (e) => {
+            currentColor = e.target.value; 
+            colorPreview.style.backgroundColor = currentColor; // เปลี่ยนสีวงกลมเล็กๆ บนปุ่มตาม
+            isDrawing = false; // ตัดเส้นเก่าเพื่อขึ้นสีใหม่
+        });
+
+        // ลบเส้น
         clearBtn.addEventListener('click', () => {
             drawingPoints = [];
             isDrawing = false;
+            
+            // รีเซ็ตปุ่มกลับไปสถานะปิดโหมด
+            isDrawMode = false;
+            drawModeBtn.classList.remove('active');
+            btnText.textContent = "🖌️ โหมดวาดรูป: ปิดอยู่";
+            colorPreview.style.display = "none";
         });
 
-        // 4. แก้ปัญหาปุ่มถ่ายรูป และรวมผลลัพธ์พร้อมกรอบ
+        // 4. ปุ่มถ่ายรูป
         snapBtn.addEventListener('click', () => {
             if (liveCanvas.width === 0) return;
 
             photoCanvas.width = liveCanvas.width;
             photoCanvas.height = liveCanvas.height;
-
-            // เคลียร์ผลลัพธ์เก่า
             photoCtx.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
 
-            // [เลเยอร์ที่ 1] กลับด้านภาพจากหน้าจอกล้องสดก่อนวาดลงแคนวาสผลลัพธ์ เพื่อให้รูปไม่สลับซ้ายขวาตอนถ่ายออกมารูปจริง
             photoCtx.save();
             photoCtx.translate(photoCanvas.width, 0);
             photoCtx.scale(-1, 1);
             photoCtx.drawImage(video, 0, 0, photoCanvas.width, photoCanvas.height);
             photoCtx.restore();
 
-            // [เลเยอร์ที่ 2] วาดลายเส้นที่ผู้ใช้วาดกลางอากาศทับลงไป
-            // (ต้องวาดแบบกลับด้าน x เพื่อให้ตรงกับหน้าจอที่ผู้ใช้เห็นแบบ Mirror)
             photoCtx.save();
             photoCtx.translate(photoCanvas.width, 0);
             photoCtx.scale(-1, 1);
             drawLines(photoCtx);
             photoCtx.restore();
 
-            // [เลเยอร์ที่ 3] วาดกรอบรูป PNG สวยๆ ทับด้านบนสุด
             if (frameImage.complete && frameImage.naturalWidth !== 0) {
                 photoCtx.drawImage(frameImage, 0, 0, photoCanvas.width, photoCanvas.height);
             }
         });
 
-        // 5. แก้ปัญหาระบบดาวน์โหลดภาพใหม่อย่างปลอดภัยและรองรับทุกอุปกรณ์
+        // 5. ดาวน์โหลดภาพ
         downloadBtn.addEventListener('click', () => {
             try {
-                // ดึงข้อมูล Base64 รูปภาพจาก Canvas ผลลัพธ์
                 const dataUrl = photoCanvas.toDataURL('image/png');
-                
-                // สร้าง Element <a> เสมือนขึ้นมาในความทรงจำเพื่อสั่งดาวน์โหลดแบบโปรแกรมมิ่ง
                 const tempLink = document.createElement('a');
                 tempLink.download = `photobooth-${Date.now()}.png`;
                 tempLink.href = dataUrl;
-                
                 document.body.appendChild(tempLink);
                 tempLink.click();
                 document.body.removeChild(tempLink);
             } catch (error) {
-                console.error(error);
-                alert("เกิดข้อผิดพลาดในการดาวน์โหลด: ตรวจสอบให้แน่ใจว่าไฟล์กรอบรูปไม่ได้ดึงข้ามโดเมนที่ติดปัญหา CORS");
+                alert("เกิดข้อผิดพลาดในการดาวน์โหลด");
             }
         });
     </script>
 </body>
+
 </html>
