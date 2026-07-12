@@ -1,147 +1,318 @@
 <!DOCTYPE html>
 <html lang="th">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Web Photo Booth</title>
+    <title>⚡ Advanced AI Photo Booth</title>
+    
+    <!-- โหลด MediaPipe สำหรับตรวจจับมือด้วย AI -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
     <style>
+        * { box-sizing: border-box; }
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
             background-color: #f0f2f5;
-            padding: 20px;
+            padding: 10px;
+            margin: 0;
         }
-
+        h1 { font-size: 1.8rem; margin: 15px 0; color: #333; }
+        
+        /* Responsive Layout ด้วย Flexbox และ Media Queries */
         .container {
             display: flex;
+            flex-direction: column;
             gap: 20px;
-            margin-top: 20px;
+            width: 100%;
+            max-width: 1000px;
+            justify-content: center;
+        }
+        @media (min-width: 768px) {
+            .container { flex-direction: row; }
         }
 
         .box {
             background: white;
             padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
             text-align: center;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
 
-        video,
-        canvas {
-            width: 400px;
-            height: 300px;
-            background-color: #333;
-            border-radius: 4px;
+        /* ควบคุมพื้นที่แสดงผลกล้องและรูปภาพให้ยืดหยุ่นตามหน้าจอ */
+        .view-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 480px;
+            aspect-ratio: 4/3;
+            background-color: #222;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        /* ซ่อนวิดีโอจริงไว้เบื้องหลัง (เพราะเราจะเอาภาพจากวิดีโอมาวาดลงวิดีโอแคนวาสเพื่อทำระบบกระจก) */
+        video { display: none; }
+
+        .booth-canvas {
+            width: 100%;
+            height: 100%;
             object-fit: cover;
         }
 
+        /* แคนวาสไลฟ์สดให้กลับด้านซ้ายขวา (Mirror) เพื่อให้วาดรูปตามมือได้เป็นธรรมชาติ */
+        #live-canvas { transform: scaleX(-1); }
+
+        .toolbar {
+            margin-top: 10px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
         button {
-            margin-top: 15px;
-            padding: 10px 20px;
-            font-size: 16px;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: bold;
             color: white;
             background-color: #007bff;
             border: none;
-            border-radius: 5px;
+            border-radius: 6px;
             cursor: pointer;
+            transition: all 0.2s;
         }
-
-        button:hover {
-            background-color: #0056b3;
-        }
+        button:hover { background-color: #0056b3; }
+        button.active { background-color: #dc3545; } /* สีแดงเมื่อโหมดวาดเปิดอยู่ */
+        
+        .btn-success { background-color: #28a745; }
+        .btn-success:hover { background-color: #218838; }
+        .btn-secondary { background-color: #6c757d; }
+        .btn-secondary:hover { background-color: #5a6268; }
     </style>
 </head>
-
 <body>
 
-    <h1>📸 My Web Photo Booth</h1>
-
+    <h1>📸 My AI Web Photo Booth</h1>
+    
     <div class="container">
-        <!-- ฝั่งกล้องสด -->
+        <!-- ฝั่งกล้องสด + AI ตรวจจับนิ้วมือ -->
         <div class="box">
             <h3>Live Preview</h3>
-            <video id="webcam" autoplay playsinline></video>
-            <br>
-            <button id="snap-btn">📸 ถ่ายรูป!</button>
+            <div class="view-wrapper">
+                <video id="webcam" autoplay playsinline muted></video>
+                <canvas id="live-canvas"></canvas>
+            </div>
+            
+            <div class="toolbar">
+                <button id="draw-mode-btn" class="btn-secondary">🖌️ โหมดวาดรูป: ปิดอยู่</button>
+                <button id="clear-btn" class="btn-secondary">🗑️ ลบเส้นวาด</button>
+                <button id="snap-btn">📸 ถ่ายรูป!</button>
+            </div>
         </div>
 
-        <!-- ฝั่งรูปที่ถ่ายเสร็จแล้ว -->
+        <!-- ฝั่งรูปผลลัพธ์พร้อมกรอบที่ถ่ายเสร็จแล้ว -->
         <div class="box">
             <h3>Captured Photo</h3>
-            <canvas id="photo-canvas"></canvas>
-            <br>
-            <a id="download-link" download="photobooth.png">
-                <button style="background-color: #28a745;">💾 ดาวน์โหลดรูป</button>
-            </a>
+            <div class="view-wrapper">
+                <canvas id="photo-canvas" class="booth-canvas"></canvas>
+            </div>
+            
+            <div class="toolbar">
+                <button id="download-btn" class="btn-success">💾 ดาวน์โหลดรูปภาพ</button>
+            </div>
         </div>
     </div>
 
     <script>
         const video = document.getElementById('webcam');
-        const canvas = document.getElementById('photo-canvas');
+        const liveCanvas = document.getElementById('live-canvas');
+        const liveCtx = liveCanvas.getContext('2d');
+        const photoCanvas = document.getElementById('photo-canvas');
+        const photoCtx = photoCanvas.getContext('2d');
+
         const snapBtn = document.getElementById('snap-btn');
-        const downloadLink = document.getElementById('download-link');
-        const ctx = canvas.getContext('2d');
+        const drawModeBtn = document.getElementById('draw-mode-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const downloadBtn = document.getElementById('download-btn');
 
-        // 1. ฟังก์ชันเปิดกล้อง
-        async function initCamera() {
-            try {
-                // ขออนุญาตเปิดกล้อง (กำหนดความละเอียดภาพ)
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { width: 1280, height: 720 },
-                    audio: false
-                });
+        // การตั้งค่าสถานะระบบ
+        let isDrawMode = false;
+        let isDrawing = false;
+        let drawingPoints = []; // เก็บพิกัดเส้นวาด [{x, y, isNewStroke}]
 
-                // ส่ง Stream จากกล้องเข้าสู่ตัว <video>
-                video.srcObject = stream;
-            } catch (err) {
-                console.error("เกิดข้อผิดพลาดในการเข้าถึงกล้อง: ", err);
-                alert("ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตให้เว็บเข้าถึงกล้องก่อนนะครับ");
+        // โหลดกรอบรูปเตรียมไว้ (เปลี่ยนชื่อไฟล์ตามกรอบรูปของคุณ)
+        const frameImage = new Image();
+        frameImage.src = 'frame.png'; 
+        frameImage.crossOrigin = "anonymous"; // ป้องกันปัญหาดาวน์โหลดไม่ได้จาก CORS
+
+        // 1. ระบบวาดเส้นและการตรวจจับนิ้วมือด้วย MediaPipe
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+        });
+
+        // เมื่อ AI ประมวลผลภาพจากกล้องเสร็จในแต่ละเฟรม
+        hands.onResults((results) => {
+            // ตั้งค่าขนาดแคนวาสไลฟ์สดตามขนาดวิดีโอจริง
+            if (liveCanvas.width !== video.videoWidth) {
+                liveCanvas.width = video.videoWidth;
+                liveCanvas.height = video.videoHeight;
+            }
+
+            liveCtx.save();
+            // วาดภาพวิดีโอสดลงไปก่อน
+            liveCtx.drawImage(results.image, 0, 0, liveCanvas.width, liveCanvas.height);
+
+            // ตรวจจับพิกัดนิ้วชี้
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+                // พิกัดข้อปลายนิ้วชี้คือตำแหน่ง index ที่ 8 ของข้อต่อมือ
+                const indexFingerTip = landmarks[8]; 
+
+                // แปลงพิกัดสัดส่วน (0 ถึง 1) ให้เป็นพิกัดพิกเซลจริงบนแคนวาส
+                const x = indexFingerTip.x * liveCanvas.width;
+                const y = indexFingerTip.y * liveCanvas.height;
+
+                // วาดจุดสีแดงนำสายตาตรงปลายนิ้วชี้เพื่อบอกตำแหน่งปัจจุบัน
+                liveCtx.fillStyle = '#ff0000';
+                liveCtx.beginPath();
+                liveCtx.arc(x, y, 10, 0, 2 * Math.PI);
+                liveCtx.fill();
+
+                if (isDrawMode) {
+                    if (!isDrawing) {
+                        // เริ่มลากเส้นใหม่เมื่อนิ้วเข้ามาในจอครั้งแรก
+                        drawingPoints.push({ x, y, isNewStroke: true });
+                        isDrawing = true;
+                    } else {
+                        // เก็บพิกัดลากเส้นต่อ
+                        drawingPoints.push({ x, y, isNewStroke: false });
+                    }
+                }
+            } else {
+                // ถ้ายกมือออกจากกล้อง ให้หยุดเส้นปัจจุบันไว้
+                isDrawing = false;
+            }
+
+            // วาดลายเส้นทั้งหมดที่ผู้ใช้เคยลากไว้ทับลงบนจอ Live Preview
+            drawLines(liveCtx);
+            liveCtx.restore();
+        });
+
+        // ฟังก์ชันสำหรับวาดลายเส้น
+        function drawLines(context) {
+            context.strokeStyle = '#00f2fe'; // สีของเส้นพู่กัน (ฟ้าสะท้อนแสง)
+            context.lineWidth = 8;
+            context.lineCap = 'round';
+            context.lineJoin = 'round';
+
+            for (let i = 0; i < drawingPoints.length; i++) {
+                const pt = drawingPoints[i];
+                if (pt.isNewStroke) {
+                    context.beginPath();
+                    context.moveTo(pt.x, pt.y);
+                } else {
+                    context.lineTo(pt.x, pt.y);
+                    context.stroke();
+                }
             }
         }
 
-        // 2. ฟังก์ชันถ่ายรูป (ดึงภาพจาก Video ลง Canvas)
-        snapBtn.addEventListener('click', () => {
-            // ตั้งค่าขนาด Canvas ให้เท่ากับขนาดวิดีโอจริงที่ส่งมา
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-
-            // วาดภาพจาก <video> ลงบน <canvas> ณ วินาทีนั้น
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            // แปลงภาพใน canvas เป็น Data URL เพื่อให้ดาวน์โหลดได้
-            const imageDataUrl = canvas.toDataURL('image/png');
-            downloadLink.href = imageDataUrl;
+        // 2. เริ่มต้นเปิดกล้องและเชื่อมต่อกับ AI
+        const camera = new Camera(video, {
+            onFrame: async () => {
+                await hands.send({ image: video });
+            },
+            width: 640,
+            height: 480
+        });
+        camera.start().catch(err => {
+            alert("ไม่สามารถเปิดกล้องได้ กรุณาใช้ผ่าน HTTPS หรือ localhost และอนุญาตสิทธิ์กล้องด้วยครับ");
         });
 
-        // เริ่มทำงานเปิดกล้องทันทีที่โหลดหน้าเว็บ
-        initCamera();
+        // 3. ปุ่มกดสลับโหมดวาดรูป
+        drawModeBtn.addEventListener('click', () => {
+            isDrawMode = !isDrawMode;
+            if (isDrawMode) {
+                drawModeBtn.textContent = "🖌️ โหมดวาดรูป: เปิดอยู่";
+                drawModeBtn.className = "active";
+            } else {
+                drawModeBtn.textContent = "🖌️ โหมดวาดรูป: ปิดอยู่";
+                drawModeBtn.className = "btn-secondary";
+                isDrawing = false; // รีเซ็ตการลากเส้น
+            }
+        });
 
-        // 1. สร้าง Object Image สำหรับโหลดกรอบรูปเตรียมไว้ล่วงหน้า
-        const frameImage = new Image();
-        frameImage.src = 'path/to/your/frame.png'; // เปลี่ยนเป็น Path ของไฟล์กรอบรูป PNG ของคุณ (ต้องเป็นพื้นหลังทะลุ)
+        // ลบเส้นที่วาดทั้งหมด
+        clearBtn.addEventListener('click', () => {
+            drawingPoints = [];
+            isDrawing = false;
+        });
 
-        // 2. ฟังก์ชันถ่ายรูปและแปะกรอบ
+        // 4. แก้ปัญหาปุ่มถ่ายรูป และรวมผลลัพธ์พร้อมกรอบ
         snapBtn.addEventListener('click', () => {
-            // ตั้งค่าขนาด Canvas ให้เท่ากับขนาดวิดีโอ
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
+            if (liveCanvas.width === 0) return;
 
-            // [เลเยอร์ที่ 1] วาดภาพคนจากหน้าจอกล้องลงไปก่อน
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            photoCanvas.width = liveCanvas.width;
+            photoCanvas.height = liveCanvas.height;
 
-            // [เลเยอร์ที่ 2] วาดกรอบรูป PNG ทับลงไปข้างบน
-            // สั่งให้วาดเต็มความกว้างและความสูงของ Canvas เพื่อให้พอดีกับรูปถ่าย
-            ctx.drawImage(frameImage, 0, 0, canvas.width, canvas.height);
+            // เคลียร์ผลลัพธ์เก่า
+            photoCtx.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
 
-            // แปลงภาพรวมทั้งหมดใน canvas เป็น Data URL เพื่อให้ดาวน์โหลดได้
-            const imageDataUrl = canvas.toDataURL('image/png');
-            downloadLink.href = imageDataUrl;
+            // [เลเยอร์ที่ 1] กลับด้านภาพจากหน้าจอกล้องสดก่อนวาดลงแคนวาสผลลัพธ์ เพื่อให้รูปไม่สลับซ้ายขวาตอนถ่ายออกมารูปจริง
+            photoCtx.save();
+            photoCtx.translate(photoCanvas.width, 0);
+            photoCtx.scale(-1, 1);
+            photoCtx.drawImage(video, 0, 0, photoCanvas.width, photoCanvas.height);
+            photoCtx.restore();
+
+            // [เลเยอร์ที่ 2] วาดลายเส้นที่ผู้ใช้วาดกลางอากาศทับลงไป
+            // (ต้องวาดแบบกลับด้าน x เพื่อให้ตรงกับหน้าจอที่ผู้ใช้เห็นแบบ Mirror)
+            photoCtx.save();
+            photoCtx.translate(photoCanvas.width, 0);
+            photoCtx.scale(-1, 1);
+            drawLines(photoCtx);
+            photoCtx.restore();
+
+            // [เลเยอร์ที่ 3] วาดกรอบรูป PNG สวยๆ ทับด้านบนสุด
+            if (frameImage.complete && frameImage.naturalWidth !== 0) {
+                photoCtx.drawImage(frameImage, 0, 0, photoCanvas.width, photoCanvas.height);
+            }
+        });
+
+        // 5. แก้ปัญหาระบบดาวน์โหลดภาพใหม่อย่างปลอดภัยและรองรับทุกอุปกรณ์
+        downloadBtn.addEventListener('click', () => {
+            try {
+                // ดึงข้อมูล Base64 รูปภาพจาก Canvas ผลลัพธ์
+                const dataUrl = photoCanvas.toDataURL('image/png');
+                
+                // สร้าง Element <a> เสมือนขึ้นมาในความทรงจำเพื่อสั่งดาวน์โหลดแบบโปรแกรมมิ่ง
+                const tempLink = document.createElement('a');
+                tempLink.download = `photobooth-${Date.now()}.png`;
+                tempLink.href = dataUrl;
+                
+                document.body.appendChild(tempLink);
+                tempLink.click();
+                document.body.removeChild(tempLink);
+            } catch (error) {
+                console.error(error);
+                alert("เกิดข้อผิดพลาดในการดาวน์โหลด: ตรวจสอบให้แน่ใจว่าไฟล์กรอบรูปไม่ได้ดึงข้ามโดเมนที่ติดปัญหา CORS");
+            }
         });
     </script>
 </body>
-
 </html>
