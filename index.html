@@ -33,13 +33,12 @@
             text-align: center;
         }
 
-        /* 📱 Responsive Container Layout */
         .container {
             display: flex;
             flex-direction: column;
             gap: 20px;
             width: 100%;
-            max-width: 500px; /* คุมขนาดไม่ให้ใหญ่เกินไปบนจอคอม และพอดีเป๊ะบนมือถือ */
+            max-width: 500px;
             justify-content: center;
         }
 
@@ -62,7 +61,6 @@
             color: #444;
         }
 
-        /* พื้นที่แสดงผลกล้องและรูปภาพ ยืดหยุ่นตามความกว้างหน้าจอ (Responsive Aspect Ratio) */
         .view-wrapper {
             position: relative;
             width: 100%;
@@ -83,7 +81,6 @@
             object-fit: cover;
         }
 
-        /* แคนวาสไลฟ์สดแบบ Mirror */
         #live-canvas {
             transform: scaleX(-1);
             width: 100%;
@@ -91,7 +88,6 @@
             object-fit: cover;
         }
 
-        /* Toolbar จัดระเบียบปุ่มให้แชร์พื้นที่กันอย่างสวยงาม */
         .toolbar {
             margin-top: 15px;
             display: flex;
@@ -101,7 +97,6 @@
             flex-wrap: wrap;
         }
 
-        /* ปุ่มฐานรากหลัก */
         button, .smart-btn {
             flex: 1;
             min-width: 120px;
@@ -123,21 +118,18 @@
             transform: scale(0.98);
         }
 
-        /* ปุ่ม Snap ถ่ายรูป */
         .btn-snap {
             background-color: #28a745;
             color: white;
         }
         .btn-snap:hover { background-color: #218838; }
 
-        /* ปุ่มล้างหน้าจอ */
         .btn-clear {
             background-color: #6c757d;
             color: white;
         }
         .btn-clear:hover { background-color: #5a6268; }
 
-        /* ปุ่มดาวน์โหลด */
         .btn-download {
             background-color: #ffc107;
             color: #212529;
@@ -146,7 +138,6 @@
         }
         .btn-download:hover { background-color: #e0a800; }
 
-        /* 🎨 Smart Button Style (เริ่มต้นคือโหมดปิดสีเทา) */
         .smart-btn {
             position: relative;
             background-color: #e9ecef;
@@ -155,7 +146,6 @@
             border: 1px solid #ced4da;
         }
 
-        /* ซ่อนหน้าต่างสีจริงไว้ในระบบ */
         #custom-color {
             position: absolute;
             width: 1px;
@@ -167,7 +157,6 @@
             border: 0;
         }
 
-        /* จุดวงกลมเล็กๆ บนปุ่มเอาไว้ขลิบขอบให้เห็นชัด */
         .color-indicator {
             width: 12px;
             height: 12px;
@@ -184,7 +173,6 @@
     <h1>📸 My AI Web Photo Booth</h1>
 
     <div class="container">
-        <!-- ฝั่งแสดงผลกล้องสด -->
         <div class="box">
             <h3>Live Preview</h3>
             <div class="view-wrapper">
@@ -193,7 +181,6 @@
             </div>
 
             <div class="toolbar">
-                <!-- 🖌️ Smart Button รวมร่างอัจฉริยะ -->
                 <div id="smart-draw-btn" class="smart-btn">
                     <span id="color-dot" class="color-indicator" style="background-color: #00f2fe; display: none;"></span>
                     <span id="btn-text">🖌️ โหมดวาดรูป: ปิด</span>
@@ -205,7 +192,6 @@
             </div>
         </div>
 
-        <!-- ฝั่งรูปผลลัพธ์ภาพถ่าย -->
         <div class="box">
             <h3>Captured Photo</h3>
             <div class="view-wrapper">
@@ -229,23 +215,26 @@
         const clearBtn = document.getElementById('clear-btn');
         const downloadBtn = document.getElementById('download-btn');
 
-        // Elements ของ Smart Button
         const smartDrawBtn = document.getElementById('smart-draw-btn');
         const btnText = document.getElementById('btn-text');
         const colorDot = document.getElementById('color-dot');
         const customColorInput = document.getElementById('custom-color');
 
-        // สเตตัสเริ่มต้น
         let isDrawMode = false;
         let isDrawing = false;
         let drawingPoints = [];
         let currentColor = '#00f2fe'; 
 
+        // 💡 ตัวแปรเก็บพิกัดล่าสุดสำหรับการทำ Smoothing Filter (EMA)
+        let smoothedX = null;
+        let smoothedY = null;
+        const SMOOTH_FACTOR = 0.25; // ยิ่งน้อยยิ่งนุ่มนวล (0.2 - 0.3 คือกำลังดี)
+
         const frameImage = new Image();
         frameImage.src = 'frame.png';
         frameImage.crossOrigin = "anonymous"; 
 
-        // 1. MediaPipe Hands Setup
+        // 1. MediaPipe Hands Setup (อัปเกรดข้อ 3: จูนค่า Confidence สูงขึ้นเพื่อความแม่นยำ)
         const hands = new Hands({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
         });
@@ -253,8 +242,8 @@
         hands.setOptions({
             maxNumHands: 1,
             modelComplexity: 1,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5
+            minDetectionConfidence: 0.75, // เพิ่มเป็น 0.75 คัดเฟรมหลุด
+            minTrackingConfidence: 0.75
         });
 
         hands.onResults((results) => {
@@ -268,27 +257,55 @@
 
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const landmarks = results.multiHandLandmarks[0];
-                const indexFingerTip = landmarks[8];
+                
+                // พิกัดปลายนิ้วชี้ (Index Finger Tip)
+                const rawX = landmarks[8].x * liveCanvas.width;
+                const rawY = landmarks[8].y * liveCanvas.height;
 
-                const x = indexFingerTip.x * liveCanvas.width;
-                const y = indexFingerTip.y * liveCanvas.height;
+                // พิกัดปลายนิ้วโป้ง (Thumb Tip) สำหรับตรวจจับการจีบ
+                const thumbX = landmarks[4].x * liveCanvas.width;
+                const thumbY = landmarks[4].y * liveCanvas.height;
 
-                // วาดพอยเตอร์สีแดงชี้ตำแหน่งนิ้วมือ
-                liveCtx.fillStyle = '#ff0000';
+                // 💡 แก้ไขข้อ 1: ใช้เทคนิค Exponential Moving Average เพื่อลดแรงสั่น (Jitter)
+                if (smoothedX === null || smoothedY === null) {
+                    smoothedX = rawX;
+                    smoothedY = rawY;
+                } else {
+                    smoothedX = (rawX * SMOOTH_FACTOR) + (smoothedX * (1 - SMOOTH_FACTOR));
+                    smoothedY = (rawY * SMOOTH_FACTOR) + (smoothedY * (1 - SMOOTH_FACTOR));
+                }
+
+                // 💡 แก้ไขข้อ 2: คำนวณระยะห่างเพื่อตรวจจับการ "จีบนิ้ว" (Pinch Gesture)
+                const distance = Math.hypot(smoothedX - thumbX, smoothedY - thumbY);
+                const PINCH_THRESHOLD = 35; // ระยะพิกเซลที่ถือว่านิ้วชนกัน (ปรับเพิ่มลดได้ตามความถนัด)
+                const isPinching = distance < PINCH_THRESHOLD;
+
+                // วาดวงกลมพอยเตอร์ตามสีพู่กันลอยบอกตำแหน่ง
+                liveCtx.fillStyle = currentColor;
+                liveCtx.strokeStyle = '#ffffff';
+                liveCtx.lineWidth = 2;
                 liveCtx.beginPath();
-                liveCtx.arc(x, y, 8, 0, 2 * Math.PI);
+                // ถ้าจีบนิ้ว (กำลังวาด) วงกลมจะหดเล็กดูลื่นไหล ถ้าปล่อยนิ้ววงกลมจะโตขึ้น
+                liveCtx.arc(smoothedX, smoothedY, isPinching && isDrawMode ? 5 : 10, 0, 2 * Math.PI);
                 liveCtx.fill();
+                liveCtx.stroke();
 
                 if (isDrawMode) {
-                    if (!isDrawing) {
-                        drawingPoints.push({ x, y, isNewStroke: true, color: currentColor });
-                        isDrawing = true;
+                    if (isPinching) {
+                        if (!isDrawing) {
+                            drawingPoints.push({ x: smoothedX, y: smoothedY, isNewStroke: true, color: currentColor });
+                            isDrawing = true;
+                        } else {
+                            drawingPoints.push({ x: smoothedX, y: smoothedY, isNewStroke: false, color: currentColor });
+                        }
                     } else {
-                        drawingPoints.push({ x, y, isNewStroke: false, color: currentColor });
+                        isDrawing = false; // ปล่อยนิ้ว = หยุดวาดเส้นทันที
                     }
                 }
             } else {
                 isDrawing = false; 
+                smoothedX = null;  // รีเซ็ตตัวกรองเมื่อมือหลุดจากจอ
+                smoothedY = null;
             }
 
             drawLines(liveCtx);
@@ -316,7 +333,7 @@
             }
         }
 
-        // 2. Camera Setup
+        // Camera Setup
         const camera = new Camera(video, {
             onFrame: async () => { await hands.send({ image: video }); },
             width: 640,
@@ -324,55 +341,50 @@
         });
         camera.start().catch(() => alert("ไม่สามารถเข้าถึงกล้องได้"));
 
-        // 3. 🖌️ ฟังก์ชันคำนวณสีตัวหนังสือ (Contrast) ให้ตัดกับพื้นหลังอัตโนมัติ
+        // ฟังก์ชันคำนวณสีตัวหนังสือ
         function getContrastColor(hexColor) {
             const r = parseInt(hexColor.substr(1, 2), 16);
             const g = parseInt(hexColor.substr(3, 2), 16);
             const b = parseInt(hexColor.substr(5, 2), 16);
             const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-            return (yiq >= 128) ? '#1a1a1a' : '#ffffff'; // ถ้าสีสว่างใช้ตัวหนังสือดำ สีเข้มใช้ตัวหนังสือขาว
+            return (yiq >= 128) ? '#1a1a1a' : '#ffffff';
         }
 
-        // 4. Smart Button Click Logic
+        // Smart Button Logic
         smartDrawBtn.addEventListener('click', (e) => {
-            if (e.target === customColorInput) return; // ป้องกันการเบิ้ลคลิกซ้อนลูป
+            if (e.target === customColorInput) return;
 
             if (!isDrawMode) {
-                // กดทีแรกตอนปิด: สลับมาเปิดโหมดวาดรูป
                 isDrawMode = true;
                 colorDot.style.display = "inline-block";
                 updateSmartButtonVisual(currentColor);
             } else {
-                // กดอีกทีตอนเปิดอยู่แล้ว: เรียกหน้าต่างเลือกสีขึ้นมาเปลี่ยนเฉด
                 customColorInput.click();
             }
         });
 
-        // เมื่อเลือกสีเสร็จสิ้นจากระบบ
         customColorInput.addEventListener('input', (e) => {
             currentColor = e.target.value; 
             colorDot.style.backgroundColor = currentColor;
             updateSmartButtonVisual(currentColor);
-            isDrawing = false; // ตัดเส้นต่อทันทีเพื่อเริ่มสีใหม่
+            isDrawing = false; 
         });
 
-        // ฟังก์ชันช่วยเปลี่ยนสีตัวปุ่ม Smart Button
         function updateSmartButtonVisual(color) {
             smartDrawBtn.style.backgroundColor = color;
             smartDrawBtn.style.borderColor = color;
-            
             const textColor = getContrastColor(color);
             smartDrawBtn.style.color = textColor;
-            btnText.textContent = "🎨 เปลี่ยนสีพู่กัน";
+            btnText.textContent = "👌 จีบนิ้วเพื่อวาด / คลิกเปลี่ยนสี";
         }
 
-        // ปุ่มล้างเส้น (และทำหน้าที่ช่วยรีเซ็ตปุ่มโหมดวาดรูปกลับเป็นค่าเริ่มต้นให้ด้วย)
         clearBtn.addEventListener('click', () => {
             drawingPoints = [];
             isDrawing = false;
             isDrawMode = false;
+            smoothedX = null;
+            smoothedY = null;
             
-            // รีเซ็ตหน้าตาปุ่ม Smart Button กลับเป็นสีเทาปิดโหมด
             smartDrawBtn.style.backgroundColor = "#e9ecef";
             smartDrawBtn.style.borderColor = "#ced4da";
             smartDrawBtn.style.color = "#495057";
@@ -380,28 +392,25 @@
             colorDot.style.display = "none";
         });
 
-        // 5. Snapshot & Download Logic
+        // Snapshot & Download Logic
         snapBtn.addEventListener('click', () => {
             if (liveCanvas.width === 0) return;
             photoCanvas.width = liveCanvas.width;
             photoCanvas.height = liveCanvas.height;
             photoCtx.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
 
-            // วาดตัวคน (Mirror ขวาไปซ้าย)
             photoCtx.save();
             photoCtx.translate(photoCanvas.width, 0);
             photoCtx.scale(-1, 1);
             photoCtx.drawImage(video, 0, 0, photoCanvas.width, photoCanvas.height);
             photoCtx.restore();
 
-            // วาดเส้นแต่งเติม
             photoCtx.save();
             photoCtx.translate(photoCanvas.width, 0);
             photoCtx.scale(-1, 1);
             drawLines(photoCtx);
             photoCtx.restore();
 
-            // แปะกรอบรูป PNG ด้านบนสุด
             if (frameImage.complete && frameImage.naturalWidth !== 0) {
                 photoCtx.drawImage(frameImage, 0, 0, photoCanvas.width, photoCanvas.height);
             }
