@@ -35,7 +35,8 @@
 
         .container {
             width: 100%;
-            max-width: 500px;
+            max-width: 500px; /* คุมขนาดไม่ให้ใหญ่เกินไปบนจอคอม และพอดีเป๊ะบนมือถือ */
+            justify-content: center;
         }
 
         .box {
@@ -117,18 +118,30 @@
             transform: scale(0.98);
         }
 
-        .btn-snap { background-color: #28a745; color: white; }
+        /* ปุ่ม Snap ถ่ายรูป */
+        .btn-snap {
+            background-color: #28a745;
+            color: white;
+        }
         .btn-snap:hover { background-color: #218838; }
 
-        .btn-clear { background-color: #6c757d; color: white; }
+        /* ปุ่มล้างหน้าจอ */
+        .btn-clear {
+            background-color: #6c757d;
+            color: white;
+        }
         .btn-clear:hover { background-color: #5a6268; }
 
-        .btn-download { background-color: #ffc107; color: #212529; text-shadow: none; width: 100%; margin-top: 10px;}
+        /* ปุ่มดาวน์โหลด */
+        .btn-download {
+            background-color: #ffc107;
+            color: #212529;
+            text-shadow: none;
+            width: 100%;
+        }
         .btn-download:hover { background-color: #e0a800; }
 
-        .btn-back { background-color: #dc3545; color: white; }
-        .btn-back:hover { background-color: #bd2130; }
-
+        /* 🎨 Smart Button Style (เริ่มต้นคือโหมดปิดสีเทา) */
         .smart-btn {
             position: relative;
             background-color: #e9ecef;
@@ -203,10 +216,9 @@
     <h1>📸 AI Web Photo Booth</h1>
 
     <div class="container">
-        
-        <!-- 🎥 โหมดที่ 1: หน้าจอถ่ายภาพและวาดรูปสด -->
-        <div id="live-zone" class="box">
-            <h3>1. Live Preview & Air Draw</h3>
+        <!-- ฝั่งแสดงผลกล้องสด -->
+        <div class="box">
+            <h3>Live Preview</h3>
             <div class="view-wrapper">
                 <video id="webcam" autoplay playsinline muted></video>
                 <canvas id="live-canvas"></canvas>
@@ -223,11 +235,9 @@
             </div>
         </div>
 
-        <!-- 🎨 โหมดที่ 2: หน้าจอตกแต่งภาพหลังถ่ายเสร็จ -->
-        <div id="decoration-zone" class="box">
-            <h3>2. Decoration Mode (แต่งรูปกัน!)</h3>
-            <p style="font-size: 0.85rem; color: #666; margin: 0 0 10px 0;">💡 คลิกที่สติกเกอร์เพื่อเพิ่ม แล้วใช้นิ้ว/เมาส์ลากย้ายตำแหน่งบนรูปได้เลย</p>
-            
+        <!-- ฝั่งรูปผลลัพธ์ภาพถ่าย -->
+        <div class="box">
+            <h3>Captured Photo</h3>
             <div class="view-wrapper">
                 <canvas id="photo-canvas"></canvas>
             </div>
@@ -284,22 +294,17 @@
         const colorDot = document.getElementById('color-dot');
         const customColorInput = document.getElementById('custom-color');
 
-        // สเตตัสระบบวาดภาพ
+        // สเตตัสเริ่มต้น
         let isDrawMode = false;
         let isDrawing = false;
         let drawingPoints = [];
         let currentColor = '#00f2fe'; 
-        let smoothedX = null, smoothedY = null;
-        const SMOOTH_FACTOR = 0.25;
 
-        // 💡 ข้อมูลสำหรับระบบตกแต่งรูปภาพ
-        let capturedImageBlob = null; // เก็บภาพต้นฉบับที่ถ่ายไว้
-        let bgImageElement = new Image(); // Element ภาพพื้นหลังที่จะใช้วาดซ้ำ
-        let stickers = []; // Array เก็บสติกเกอร์ที่ถูกแอด [{text, x, y, size}]
-        let selectedFrame = 'none'; // สเตตัสกรอบรูปที่เลือก
-        let draggedSticker = null; // สติกเกอร์ที่กำลังถูกลากอยู่ ณ ปัจจุบัน
+        const frameImage = new Image();
+        frameImage.src = 'frame.png';
+        frameImage.crossOrigin = "anonymous"; 
 
-        // --- 1. ระบบ AI ตรวจจับนิ้วมือและลากเส้น (เหมือนเดิมที่สเถียรแล้ว) ---
+        // 1. MediaPipe Hands Setup
         const hands = new Hands({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
         });
@@ -307,8 +312,8 @@
         hands.setOptions({
             maxNumHands: 1,
             modelComplexity: 1,
-            minDetectionConfidence: 0.75,
-            minTrackingConfidence: 0.75
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
         });
 
         hands.onResults((results) => {
@@ -322,26 +327,15 @@
 
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const landmarks = results.multiHandLandmarks[0];
-                const rawX = landmarks[8].x * liveCanvas.width;
-                const rawY = landmarks[8].y * liveCanvas.height;
-                const thumbX = landmarks[4].x * liveCanvas.width;
-                const thumbY = landmarks[4].y * liveCanvas.height;
+                const indexFingerTip = landmarks[8];
 
-                if (smoothedX === null || smoothedY === null) {
-                    smoothedX = rawX; smoothedY = rawY;
-                } else {
-                    smoothedX = (rawX * SMOOTH_FACTOR) + (smoothedX * (1 - SMOOTH_FACTOR));
-                    smoothedY = (rawY * SMOOTH_FACTOR) + (smoothedY * (1 - SMOOTH_FACTOR));
-                }
+                const x = indexFingerTip.x * liveCanvas.width;
+                const y = indexFingerTip.y * liveCanvas.height;
 
-                const distance = Math.hypot(smoothedX - thumbX, smoothedY - thumbY);
-                const isPinching = distance < 35;
-
-                liveCtx.fillStyle = currentColor;
-                liveCtx.strokeStyle = '#ffffff';
-                liveCtx.lineWidth = 2;
+                // วาดพอยเตอร์สีแดงชี้ตำแหน่งนิ้วมือ
+                liveCtx.fillStyle = '#ff0000';
                 liveCtx.beginPath();
-                liveCtx.arc(smoothedX, smoothedY, isPinching && isDrawMode ? 5 : 10, 0, 2 * Math.PI);
+                liveCtx.arc(x, y, 8, 0, 2 * Math.PI);
                 liveCtx.fill();
                 liveCtx.stroke();
 
@@ -354,12 +348,11 @@
                             drawingPoints.push({ x: smoothedX, y: smoothedY, isNewStroke: false, color: currentColor });
                         }
                     } else {
-                        isDrawing = false;
+                        drawingPoints.push({ x, y, isNewStroke: false, color: currentColor });
                     }
                 }
             } else {
-                isDrawing = false;
-                smoothedX = null; smoothedY = null;
+                isDrawing = false; 
             }
 
             drawLines(liveCtx);
@@ -387,6 +380,7 @@
             }
         }
 
+        // 2. Camera Setup
         const camera = new Camera(video, {
             onFrame: async () => { await hands.send({ image: video }); },
             width: 640,
@@ -394,7 +388,7 @@
         });
         camera.start().catch(() => alert("ไม่สามารถเข้าถึงกล้องได้"));
 
-        // --- 2. Smart Button Logic ---
+        // 3. 🖌️ ฟังก์ชันคำนวณสีตัวหนังสือ (Contrast) ให้ตัดกับพื้นหลังอัตโนมัติ
         function getContrastColor(hexColor) {
             const r = parseInt(hexColor.substr(1, 2), 16);
             const g = parseInt(hexColor.substr(3, 2), 16);
@@ -403,8 +397,10 @@
             return (yiq >= 128) ? '#1a1a1a' : '#ffffff';
         }
 
+        // 4. Smart Button Click Logic
         smartDrawBtn.addEventListener('click', (e) => {
-            if (e.target === customColorInput) return;
+            if (e.target === customColorInput) return; // ป้องกันการเบิ้ลคลิกซ้อนลูป
+
             if (!isDrawMode) {
                 isDrawMode = true;
                 colorDot.style.display = "inline-block";
@@ -430,12 +426,19 @@
         }
 
         clearBtn.addEventListener('click', () => {
-            drawingPoints = []; isDrawing = false; isDrawMode = false; smoothedX = null; smoothedY = null;
-            smartDrawBtn.style.backgroundColor = "#e9ecef"; smartDrawBtn.style.borderColor = "#ced4da"; smartDrawBtn.style.color = "#495057";
-            btnText.textContent = "🖌️ โหมดวาดรูป: ปิด"; colorDot.style.display = "none";
+            drawingPoints = [];
+            isDrawing = false;
+            isDrawMode = false;
+            
+            // รีเซ็ตหน้าตาปุ่ม Smart Button กลับเป็นสีเทาปิดโหมด
+            smartDrawBtn.style.backgroundColor = "#e9ecef";
+            smartDrawBtn.style.borderColor = "#ced4da";
+            smartDrawBtn.style.color = "#495057";
+            btnText.textContent = "🖌️ โหมดวาดรูป: ปิด";
+            colorDot.style.display = "none";
         });
 
-        // --- 3. 📸 ระบบถ่ายภาพ และสลับเข้าสู่ "โหมดตกแต่ง" ---
+        // 5. Snapshot & Download Logic
         snapBtn.addEventListener('click', () => {
             if (liveCanvas.width === 0) return;
 
@@ -443,130 +446,24 @@
             photoCanvas.width = liveCanvas.width;
             photoCanvas.height = liveCanvas.height;
 
-            // วาดตัวคน (Mirror ขวาไปซ้าย) + เส้นวาดสดลงบนแคนวาสชั่วคราว
+            // วาดตัวคน (Mirror ขวาไปซ้าย)
             photoCtx.save();
             photoCtx.translate(photoCanvas.width, 0);
             photoCtx.scale(-1, 1);
             photoCtx.drawImage(video, 0, 0, photoCanvas.width, photoCanvas.height);
+            photoCtx.restore();
+
+            // วาดเส้นแต่งเติม
+            photoCtx.save();
+            photoCtx.translate(photoCanvas.width, 0);
+            photoCtx.scale(-1, 1);
             drawLines(photoCtx);
             photoCtx.restore();
 
-            // แปลงแคนวาสให้กลายเป็นภาพนิ่งเก็บไว้เป็นภาพพื้นหลัง
-            bgImageElement.src = photoCanvas.toDataURL('image/png');
-            bgImageElement.onload = () => {
-                // เคลียร์ค่าตกแต่งเก่าออกทั้งหมด
-                stickers = [];
-                selectedFrame = 'none';
-                
-                // สลับหน้าจอ UI ไปโหมดตกแต่งรูป
-                liveZone.style.display = 'none';
-                decorationZone.style.display = 'flex';
-                
-                renderDecorationCanvas(); // สั่งเรนเดอร์ภาพแคนวาสแต่งรูป
-            };
-        });
-
-        // --- 4. 🎨 ระบบจัดการ Canvas ตกแต่ง (Render Frame & Drag Sticker) ---
-        function renderDecorationCanvas() {
-            photoCtx.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
-            
-            // 1. วาดรูปถ่ายต้นฉบับที่เป็นพื้นหลัง
-            photoCtx.drawImage(bgImageElement, 0, 0, photoCanvas.width, photoCanvas.height);
-
-            // 2. วาดกรอบรูป (ตกแต่งเพิ่มด้วยโค้ดสีสดๆ)
-            if (selectedFrame === 'pink') {
-                photoCtx.strokeStyle = '#ff8da1';
-                photoCtx.lineWidth = 24;
-                photoCtx.strokeRect(0, 0, photoCanvas.width, photoCanvas.height);
-            } else if (selectedFrame === 'blue') {
-                photoCtx.strokeStyle = '#00f2fe';
-                photoCtx.lineWidth = 24;
-                photoCtx.strokeRect(0, 0, photoCanvas.width, photoCanvas.height);
+            // แปะกรอบรูป PNG ด้านบนสุด
+            if (frameImage.complete && frameImage.naturalWidth !== 0) {
+                photoCtx.drawImage(frameImage, 0, 0, photoCanvas.width, photoCanvas.height);
             }
-
-            // 3. วาดสติกเกอร์ทั้งหมดที่อยู่ในลิสต์ลงไป
-            photoCtx.font = "40px Arial";
-            photoCtx.textBaseline = "middle";
-            photoCtx.textAlign = "center";
-            
-            stickers.forEach(stk => {
-                photoCtx.fillText(stk.text, stk.x, stk.y);
-            });
-        }
-
-        // ฟังก์ชันเพิ่มสติกเกอร์ตัวใหม่เข้าไปตรงกลางแคนวาส
-        window.addSticker = function(emoji) {
-            stickers.push({
-                text: emoji,
-                x: photoCanvas.width / 2 + (Math.random() * 40 - 20), // ให้อยู่แถวๆ ตรงกลางจอ
-                y: photoCanvas.height / 2 + (Math.random() * 40 - 20),
-                size: 40
-            });
-            renderDecorationCanvas();
-        };
-
-        // ฟังก์ชันเปลี่ยนสีสไตล์กรอบรูป
-        window.changeFrame = function(frameStyle) {
-            selectedFrame = frameStyle;
-            renderDecorationCanvas();
-        };
-
-        // --- 5. 👆 ระบบลากสติกเกอร์ย้ายตำแหน่งแบบเรียลไทม์ (Drag and Drop บน Canvas) ---
-        function getMousePos(canvas, evt) {
-            const rect = canvas.getBoundingClientRect();
-            // คำนวณอัตราส่วนเนื่องจากแคนวาสถูกบีบขยายด้วย CSS
-            return {
-                x: (evt.clientX - rect.left) / (rect.right - rect.left) * canvas.width,
-                y: (evt.clientY - rect.top) / (rect.bottom - rect.top) * canvas.height
-            };
-        }
-
-        function handleStart(clientX, clientY) {
-            const pos = getMousePos(photoCanvas, { clientX, clientY });
-            
-            // วนลูปเช็กว่ากดโดนสติกเกอร์ตัวไหนไหม (เช็กจากตัวล่าสุดที่อยู่บนสุดก่อน)
-            for (let i = stickers.length - 1; i >= 0; i--) {
-                const stk = stickers[i];
-                // เช็กระยะห่างแบบคร่าวๆ รอบๆ ตัว Emoji
-                if (Math.hypot(pos.x - stk.x, pos.y - stk.y) < stk.size) {
-                    draggedSticker = stk;
-                    break;
-                }
-            }
-        }
-
-        function handleMove(clientX, clientY) {
-            if (!draggedSticker) return;
-            const pos = getMousePos(photoCanvas, { clientX, clientY });
-            draggedSticker.x = pos.x;
-            draggedSticker.y = pos.y;
-            renderDecorationCanvas();
-        }
-
-        function handleEnd() {
-            draggedSticker = null;
-        }
-
-        // อีเวนต์ดักจับสำหรับ เมาส์ (PC)
-        photoCanvas.addEventListener('mousedown', (e) => handleStart(e.clientX, e.clientY));
-        window.addEventListener('mousemove', (e) => handleMove(e.clientX, e.clientY));
-        window.addEventListener('mouseup', handleEnd);
-
-        // อีเวนต์ดักจับสำหรับ นิ้วสัมผัส (มือถือ)
-        photoCanvas.addEventListener('touchstart', (e) => {
-            if (e.touches.length === 1) handleStart(e.touches[0].clientX, e.touches[0].clientY);
-        });
-        window.addEventListener('touchmove', (e) => {
-            if (e.touches.length === 1) handleMove(e.touches[0].clientX, e.touches[0].clientY);
-        });
-        window.addEventListener('touchend', handleEnd);
-
-
-        // --- 6. ปุ่มเปลี่ยนโหมดถอยกลับ และ ปุ่มดาวน์โหลดรูปภาพ ---
-        backBtn.addEventListener('click', () => {
-            // สลับกลับไปหน้าจอกล้องสด
-            decorationZone.style.display = 'none';
-            liveZone.style.display = 'flex';
         });
 
         downloadBtn.addEventListener('click', () => {
