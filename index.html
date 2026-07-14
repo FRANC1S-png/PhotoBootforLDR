@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Photo Booth for LDR</title>
+    <title>Photo Booth with Decoration Mode</title>
 
     <!-- โหลด MediaPipe สำหรับตรวจจับมือด้วย AI -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -33,14 +33,9 @@
             text-align: center;
         }
 
-        /* 📱 Responsive Container Layout */
         .container {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
             width: 100%;
-            max-width: 500px; /* คุมขนาดไม่ให้ใหญ่เกินไปบนจอคอม และพอดีเป๊ะบนมือถือ */
-            justify-content: center;
+            max-width: 500px;
         }
 
         .box {
@@ -53,6 +48,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
+            margin-bottom: 20px;
         }
 
         .box h3 {
@@ -62,7 +58,6 @@
             color: #444;
         }
 
-        /* พื้นที่แสดงผลกล้องและรูปภาพ ยืดหยุ่นตามความกว้างหน้าจอ (Responsive Aspect Ratio) */
         .view-wrapper {
             position: relative;
             width: 100%;
@@ -77,13 +72,14 @@
             display: none;
         }
 
-        .booth-canvas {
+        /* สำหรับหน้าตกแต่งรูปภาพ */
+        #photo-canvas {
             width: 100%;
             height: 100%;
             object-fit: cover;
+            cursor: move; /* เปลี่ยน cursor ให้รู้ว่าลากของได้ */
         }
 
-        /* แคนวาสไลฟ์สดแบบ Mirror */
         #live-canvas {
             transform: scaleX(-1);
             width: 100%;
@@ -91,7 +87,6 @@
             object-fit: cover;
         }
 
-        /* Toolbar จัดระเบียบปุ่มให้แชร์พื้นที่กันอย่างสวยงาม */
         .toolbar {
             margin-top: 15px;
             display: flex;
@@ -101,7 +96,6 @@
             flex-wrap: wrap;
         }
 
-        /* ปุ่มฐานรากหลัก */
         button, .smart-btn {
             flex: 1;
             min-width: 120px;
@@ -123,30 +117,18 @@
             transform: scale(0.98);
         }
 
-        /* ปุ่ม Snap ถ่ายรูป */
-        .btn-snap {
-            background-color: #28a745;
-            color: white;
-        }
+        .btn-snap { background-color: #28a745; color: white; }
         .btn-snap:hover { background-color: #218838; }
 
-        /* ปุ่มล้างหน้าจอ */
-        .btn-clear {
-            background-color: #6c757d;
-            color: white;
-        }
+        .btn-clear { background-color: #6c757d; color: white; }
         .btn-clear:hover { background-color: #5a6268; }
 
-        /* ปุ่มดาวน์โหลด */
-        .btn-download {
-            background-color: #ffc107;
-            color: #212529;
-            text-shadow: none;
-            width: 100%;
-        }
+        .btn-download { background-color: #ffc107; color: #212529; text-shadow: none; width: 100%; margin-top: 10px;}
         .btn-download:hover { background-color: #e0a800; }
 
-        /* 🎨 Smart Button Style (เริ่มต้นคือโหมดปิดสีเทา) */
+        .btn-back { background-color: #dc3545; color: white; }
+        .btn-back:hover { background-color: #bd2130; }
+
         .smart-btn {
             position: relative;
             background-color: #e9ecef;
@@ -155,7 +137,6 @@
             border: 1px solid #ced4da;
         }
 
-        /* ซ่อนหน้าต่างสีจริงไว้ในระบบ */
         #custom-color {
             position: absolute;
             width: 1px;
@@ -167,7 +148,6 @@
             border: 0;
         }
 
-        /* จุดวงกลมเล็กๆ บนปุ่มเอาไว้ขลิบขอบให้เห็นชัด */
         .color-indicator {
             width: 12px;
             height: 12px;
@@ -176,46 +156,111 @@
             border: 1px solid rgba(0,0,0,0.2);
             display: inline-block;
         }
+
+        /* 🎪 ส่วนเลือกไอเทมตกแต่ง (Stickers & Frames) */
+        .deco-selector {
+            width: 100%;
+            margin-top: 15px;
+            text-align: left;
+        }
+        .deco-label {
+            font-size: 0.9rem;
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 5px;
+            display: block;
+        }
+        .item-list {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            padding: 5px 0;
+        }
+        .deco-item {
+            font-size: 1.8rem;
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 5px 10px;
+            cursor: pointer;
+            user-select: none;
+            transition: transform 0.1s;
+        }
+        .deco-item:hover {
+            transform: scale(1.1);
+            background: #e9ecef;
+        }
+
+        /* ซ่อนส่วนตกแต่งไว้ก่อน จะโชว์เมื่อถ่ายรูปเสร็จ */
+        #decoration-zone {
+            display: none;
+        }
     </style>
 </head>
 
 <body>
 
-    <h1>📸 My AI Web Photo Booth</h1>
+    <h1>📸 AI Web Photo Booth</h1>
 
     <div class="container">
-        <!-- ฝั่งแสดงผลกล้องสด -->
-        <div class="box">
-            <h3>Live Preview</h3>
+        
+        <!-- 🎥 โหมดที่ 1: หน้าจอถ่ายภาพและวาดรูปสด -->
+        <div id="live-zone" class="box">
+            <h3>1. Live Preview & Air Draw</h3>
             <div class="view-wrapper">
                 <video id="webcam" autoplay playsinline muted></video>
                 <canvas id="live-canvas"></canvas>
             </div>
 
             <div class="toolbar">
-                <!-- 🖌️ Smart Button รวมร่างอัจฉริยะ -->
                 <div id="smart-draw-btn" class="smart-btn">
                     <span id="color-dot" class="color-indicator" style="background-color: #00f2fe; display: none;"></span>
                     <span id="btn-text">🖌️ โหมดวาดรูป: ปิด</span>
                     <input type="color" id="custom-color" value="#00f2fe">
                 </div>
-
                 <button id="clear-btn" class="btn-clear">🗑️ ล้างเส้น</button>
-                <button id="snap-btn" class="btn-snap">📸 ถ่ายรูป</button>
+                <button id="snap-btn" class="btn-snap">📸 ถ่ายรูป!</button>
             </div>
         </div>
 
-        <!-- ฝั่งรูปผลลัพธ์ภาพถ่าย -->
-        <div class="box">
-            <h3>Captured Photo</h3>
+        <!-- 🎨 โหมดที่ 2: หน้าจอตกแต่งภาพหลังถ่ายเสร็จ -->
+        <div id="decoration-zone" class="box">
+            <h3>2. Decoration Mode (แต่งรูปกัน!)</h3>
+            <p style="font-size: 0.85rem; color: #666; margin: 0 0 10px 0;">💡 คลิกที่สติกเกอร์เพื่อเพิ่ม แล้วใช้นิ้ว/เมาส์ลากย้ายตำแหน่งบนรูปได้เลย</p>
+            
             <div class="view-wrapper">
-                <canvas id="photo-canvas" class="booth-canvas"></canvas>
+                <canvas id="photo-canvas"></canvas>
+            </div>
+
+            <!-- เลือกสติกเกอร์ (ใช้ Emoji แทนรูปภาพเพื่อให้ทดสอบได้ทันที) -->
+            <div class="deco-selector">
+                <span class="deco-label">✨ เลือกสติกเกอร์:</span>
+                <div class="item-list">
+                    <div class="deco-item" onclick="addSticker('❤️')">❤️</div>
+                    <div class="deco-item" onclick="addSticker('✨')">✨</div>
+                    <div class="deco-item" onclick="addSticker('👑')">👑</div>
+                    <div class="deco-item" onclick="addSticker('🕶️')">🕶️</div>
+                    <div class="deco-item" onclick="addSticker('🐱')">🐱</div>
+                    <div class="deco-item" onclick="addSticker('🌸')">🌸</div>
+                </div>
+            </div>
+
+            <!-- เลือกกรอบรูป -->
+            <div class="deco-selector">
+                <span class="deco-label">🖼️ เลือกกรอบรูป:</span>
+                <div class="item-list">
+                    <div class="deco-item" style="font-size:1rem;" onclick="changeFrame('none')">❌ ไม่มีกรอบ</div>
+                    <div class="deco-item" style="font-size:1rem; color: #e83e8c;" onclick="changeFrame('pink')">🌸 กรอบชมพู</div>
+                    <div class="deco-item" style="font-size:1rem; color: #007bff;" onclick="changeFrame('blue')">💧 กรอบฟ้า</div>
+                </div>
             </div>
 
             <div class="toolbar">
-                <button id="download-btn" class="btn-download">💾 ดาวน์โหลดรูปภาพ</button>
+                <button id="back-btn" class="btn-back">🔄 ถ่ายใหม่</button>
+                <button id="download-btn" class="btn-download">💾 ดาวน์โหลดรูปภาพสมบูรณ์</button>
             </div>
         </div>
+
     </div>
 
     <script>
@@ -225,27 +270,36 @@
         const photoCanvas = document.getElementById('photo-canvas');
         const photoCtx = photoCanvas.getContext('2d');
 
+        // โซนสลับหน้า UI
+        const liveZone = document.getElementById('live-zone');
+        const decorationZone = document.getElementById('decoration-zone');
+
         const snapBtn = document.getElementById('snap-btn');
         const clearBtn = document.getElementById('clear-btn');
+        const backBtn = document.getElementById('back-btn');
         const downloadBtn = document.getElementById('download-btn');
 
-        // Elements ของ Smart Button
         const smartDrawBtn = document.getElementById('smart-draw-btn');
         const btnText = document.getElementById('btn-text');
         const colorDot = document.getElementById('color-dot');
         const customColorInput = document.getElementById('custom-color');
 
-        // สเตตัสเริ่มต้น
+        // สเตตัสระบบวาดภาพ
         let isDrawMode = false;
         let isDrawing = false;
         let drawingPoints = [];
         let currentColor = '#00f2fe'; 
+        let smoothedX = null, smoothedY = null;
+        const SMOOTH_FACTOR = 0.25;
 
-        const frameImage = new Image();
-        frameImage.src = 'frame.png';
-        frameImage.crossOrigin = "anonymous"; 
+        // 💡 ข้อมูลสำหรับระบบตกแต่งรูปภาพ
+        let capturedImageBlob = null; // เก็บภาพต้นฉบับที่ถ่ายไว้
+        let bgImageElement = new Image(); // Element ภาพพื้นหลังที่จะใช้วาดซ้ำ
+        let stickers = []; // Array เก็บสติกเกอร์ที่ถูกแอด [{text, x, y, size}]
+        let selectedFrame = 'none'; // สเตตัสกรอบรูปที่เลือก
+        let draggedSticker = null; // สติกเกอร์ที่กำลังถูกลากอยู่ ณ ปัจจุบัน
 
-        // 1. MediaPipe Hands Setup
+        // --- 1. ระบบ AI ตรวจจับนิ้วมือและลากเส้น (เหมือนเดิมที่สเถียรแล้ว) ---
         const hands = new Hands({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
         });
@@ -253,8 +307,8 @@
         hands.setOptions({
             maxNumHands: 1,
             modelComplexity: 1,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5
+            minDetectionConfidence: 0.75,
+            minTrackingConfidence: 0.75
         });
 
         hands.onResults((results) => {
@@ -268,27 +322,44 @@
 
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const landmarks = results.multiHandLandmarks[0];
-                const indexFingerTip = landmarks[8];
+                const rawX = landmarks[8].x * liveCanvas.width;
+                const rawY = landmarks[8].y * liveCanvas.height;
+                const thumbX = landmarks[4].x * liveCanvas.width;
+                const thumbY = landmarks[4].y * liveCanvas.height;
 
-                const x = indexFingerTip.x * liveCanvas.width;
-                const y = indexFingerTip.y * liveCanvas.height;
+                if (smoothedX === null || smoothedY === null) {
+                    smoothedX = rawX; smoothedY = rawY;
+                } else {
+                    smoothedX = (rawX * SMOOTH_FACTOR) + (smoothedX * (1 - SMOOTH_FACTOR));
+                    smoothedY = (rawY * SMOOTH_FACTOR) + (smoothedY * (1 - SMOOTH_FACTOR));
+                }
 
-                // วาดพอยเตอร์สีแดงชี้ตำแหน่งนิ้วมือ
-                liveCtx.fillStyle = '#ff0000';
+                const distance = Math.hypot(smoothedX - thumbX, smoothedY - thumbY);
+                const isPinching = distance < 35;
+
+                liveCtx.fillStyle = currentColor;
+                liveCtx.strokeStyle = '#ffffff';
+                liveCtx.lineWidth = 2;
                 liveCtx.beginPath();
-                liveCtx.arc(x, y, 8, 0, 2 * Math.PI);
+                liveCtx.arc(smoothedX, smoothedY, isPinching && isDrawMode ? 5 : 10, 0, 2 * Math.PI);
                 liveCtx.fill();
+                liveCtx.stroke();
 
                 if (isDrawMode) {
-                    if (!isDrawing) {
-                        drawingPoints.push({ x, y, isNewStroke: true, color: currentColor });
-                        isDrawing = true;
+                    if (isPinching) {
+                        if (!isDrawing) {
+                            drawingPoints.push({ x: smoothedX, y: smoothedY, isNewStroke: true, color: currentColor });
+                            isDrawing = true;
+                        } else {
+                            drawingPoints.push({ x: smoothedX, y: smoothedY, isNewStroke: false, color: currentColor });
+                        }
                     } else {
-                        drawingPoints.push({ x, y, isNewStroke: false, color: currentColor });
+                        isDrawing = false;
                     }
                 }
             } else {
-                isDrawing = false; 
+                isDrawing = false;
+                smoothedX = null; smoothedY = null;
             }
 
             drawLines(liveCtx);
@@ -316,7 +387,6 @@
             }
         }
 
-        // 2. Camera Setup
         const camera = new Camera(video, {
             onFrame: async () => { await hands.send({ image: video }); },
             width: 640,
@@ -324,94 +394,186 @@
         });
         camera.start().catch(() => alert("ไม่สามารถเข้าถึงกล้องได้"));
 
-        // 3. 🖌️ ฟังก์ชันคำนวณสีตัวหนังสือ (Contrast) ให้ตัดกับพื้นหลังอัตโนมัติ
+        // --- 2. Smart Button Logic ---
         function getContrastColor(hexColor) {
             const r = parseInt(hexColor.substr(1, 2), 16);
             const g = parseInt(hexColor.substr(3, 2), 16);
             const b = parseInt(hexColor.substr(5, 2), 16);
             const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-            return (yiq >= 128) ? '#1a1a1a' : '#ffffff'; // ถ้าสีสว่างใช้ตัวหนังสือดำ สีเข้มใช้ตัวหนังสือขาว
+            return (yiq >= 128) ? '#1a1a1a' : '#ffffff';
         }
 
-        // 4. Smart Button Click Logic
         smartDrawBtn.addEventListener('click', (e) => {
-            if (e.target === customColorInput) return; // ป้องกันการเบิ้ลคลิกซ้อนลูป
-
+            if (e.target === customColorInput) return;
             if (!isDrawMode) {
-                // กดทีแรกตอนปิด: สลับมาเปิดโหมดวาดรูป
                 isDrawMode = true;
                 colorDot.style.display = "inline-block";
                 updateSmartButtonVisual(currentColor);
             } else {
-                // กดอีกทีตอนเปิดอยู่แล้ว: เรียกหน้าต่างเลือกสีขึ้นมาเปลี่ยนเฉด
                 customColorInput.click();
             }
         });
 
-        // เมื่อเลือกสีเสร็จสิ้นจากระบบ
         customColorInput.addEventListener('input', (e) => {
             currentColor = e.target.value; 
             colorDot.style.backgroundColor = currentColor;
             updateSmartButtonVisual(currentColor);
-            isDrawing = false; // ตัดเส้นต่อทันทีเพื่อเริ่มสีใหม่
+            isDrawing = false; 
         });
 
-        // ฟังก์ชันช่วยเปลี่ยนสีตัวปุ่ม Smart Button
         function updateSmartButtonVisual(color) {
             smartDrawBtn.style.backgroundColor = color;
             smartDrawBtn.style.borderColor = color;
-            
             const textColor = getContrastColor(color);
             smartDrawBtn.style.color = textColor;
-            btnText.textContent = "🎨 เปลี่ยนสีพู่กัน";
+            btnText.textContent = "👌 จีบนิ้วเพื่อวาด / คลิกเปลี่ยนสี";
         }
 
-        // ปุ่มล้างเส้น (และทำหน้าที่ช่วยรีเซ็ตปุ่มโหมดวาดรูปกลับเป็นค่าเริ่มต้นให้ด้วย)
         clearBtn.addEventListener('click', () => {
-            drawingPoints = [];
-            isDrawing = false;
-            isDrawMode = false;
-            
-            // รีเซ็ตหน้าตาปุ่ม Smart Button กลับเป็นสีเทาปิดโหมด
-            smartDrawBtn.style.backgroundColor = "#e9ecef";
-            smartDrawBtn.style.borderColor = "#ced4da";
-            smartDrawBtn.style.color = "#495057";
-            btnText.textContent = "🖌️ โหมดวาดรูป: ปิด";
-            colorDot.style.display = "none";
+            drawingPoints = []; isDrawing = false; isDrawMode = false; smoothedX = null; smoothedY = null;
+            smartDrawBtn.style.backgroundColor = "#e9ecef"; smartDrawBtn.style.borderColor = "#ced4da"; smartDrawBtn.style.color = "#495057";
+            btnText.textContent = "🖌️ โหมดวาดรูป: ปิด"; colorDot.style.display = "none";
         });
 
-        // 5. Snapshot & Download Logic
+        // --- 3. 📸 ระบบถ่ายภาพ และสลับเข้าสู่ "โหมดตกแต่ง" ---
         snapBtn.addEventListener('click', () => {
             if (liveCanvas.width === 0) return;
+
+            // ตั้งค่าขนาดแคนวาสแต่งรูปให้เท่าแคนวาสจริง
             photoCanvas.width = liveCanvas.width;
             photoCanvas.height = liveCanvas.height;
-            photoCtx.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
 
-            // วาดตัวคน (Mirror ขวาไปซ้าย)
+            // วาดตัวคน (Mirror ขวาไปซ้าย) + เส้นวาดสดลงบนแคนวาสชั่วคราว
             photoCtx.save();
             photoCtx.translate(photoCanvas.width, 0);
             photoCtx.scale(-1, 1);
             photoCtx.drawImage(video, 0, 0, photoCanvas.width, photoCanvas.height);
-            photoCtx.restore();
-
-            // วาดเส้นแต่งเติม
-            photoCtx.save();
-            photoCtx.translate(photoCanvas.width, 0);
-            photoCtx.scale(-1, 1);
             drawLines(photoCtx);
             photoCtx.restore();
 
-            // แปะกรอบรูป PNG ด้านบนสุด
-            if (frameImage.complete && frameImage.naturalWidth !== 0) {
-                photoCtx.drawImage(frameImage, 0, 0, photoCanvas.width, photoCanvas.height);
+            // แปลงแคนวาสให้กลายเป็นภาพนิ่งเก็บไว้เป็นภาพพื้นหลัง
+            bgImageElement.src = photoCanvas.toDataURL('image/png');
+            bgImageElement.onload = () => {
+                // เคลียร์ค่าตกแต่งเก่าออกทั้งหมด
+                stickers = [];
+                selectedFrame = 'none';
+                
+                // สลับหน้าจอ UI ไปโหมดตกแต่งรูป
+                liveZone.style.display = 'none';
+                decorationZone.style.display = 'flex';
+                
+                renderDecorationCanvas(); // สั่งเรนเดอร์ภาพแคนวาสแต่งรูป
+            };
+        });
+
+        // --- 4. 🎨 ระบบจัดการ Canvas ตกแต่ง (Render Frame & Drag Sticker) ---
+        function renderDecorationCanvas() {
+            photoCtx.clearRect(0, 0, photoCanvas.width, photoCanvas.height);
+            
+            // 1. วาดรูปถ่ายต้นฉบับที่เป็นพื้นหลัง
+            photoCtx.drawImage(bgImageElement, 0, 0, photoCanvas.width, photoCanvas.height);
+
+            // 2. วาดกรอบรูป (ตกแต่งเพิ่มด้วยโค้ดสีสดๆ)
+            if (selectedFrame === 'pink') {
+                photoCtx.strokeStyle = '#ff8da1';
+                photoCtx.lineWidth = 24;
+                photoCtx.strokeRect(0, 0, photoCanvas.width, photoCanvas.height);
+            } else if (selectedFrame === 'blue') {
+                photoCtx.strokeStyle = '#00f2fe';
+                photoCtx.lineWidth = 24;
+                photoCtx.strokeRect(0, 0, photoCanvas.width, photoCanvas.height);
             }
+
+            // 3. วาดสติกเกอร์ทั้งหมดที่อยู่ในลิสต์ลงไป
+            photoCtx.font = "40px Arial";
+            photoCtx.textBaseline = "middle";
+            photoCtx.textAlign = "center";
+            
+            stickers.forEach(stk => {
+                photoCtx.fillText(stk.text, stk.x, stk.y);
+            });
+        }
+
+        // ฟังก์ชันเพิ่มสติกเกอร์ตัวใหม่เข้าไปตรงกลางแคนวาส
+        window.addSticker = function(emoji) {
+            stickers.push({
+                text: emoji,
+                x: photoCanvas.width / 2 + (Math.random() * 40 - 20), // ให้อยู่แถวๆ ตรงกลางจอ
+                y: photoCanvas.height / 2 + (Math.random() * 40 - 20),
+                size: 40
+            });
+            renderDecorationCanvas();
+        };
+
+        // ฟังก์ชันเปลี่ยนสีสไตล์กรอบรูป
+        window.changeFrame = function(frameStyle) {
+            selectedFrame = frameStyle;
+            renderDecorationCanvas();
+        };
+
+        // --- 5. 👆 ระบบลากสติกเกอร์ย้ายตำแหน่งแบบเรียลไทม์ (Drag and Drop บน Canvas) ---
+        function getMousePos(canvas, evt) {
+            const rect = canvas.getBoundingClientRect();
+            // คำนวณอัตราส่วนเนื่องจากแคนวาสถูกบีบขยายด้วย CSS
+            return {
+                x: (evt.clientX - rect.left) / (rect.right - rect.left) * canvas.width,
+                y: (evt.clientY - rect.top) / (rect.bottom - rect.top) * canvas.height
+            };
+        }
+
+        function handleStart(clientX, clientY) {
+            const pos = getMousePos(photoCanvas, { clientX, clientY });
+            
+            // วนลูปเช็กว่ากดโดนสติกเกอร์ตัวไหนไหม (เช็กจากตัวล่าสุดที่อยู่บนสุดก่อน)
+            for (let i = stickers.length - 1; i >= 0; i--) {
+                const stk = stickers[i];
+                // เช็กระยะห่างแบบคร่าวๆ รอบๆ ตัว Emoji
+                if (Math.hypot(pos.x - stk.x, pos.y - stk.y) < stk.size) {
+                    draggedSticker = stk;
+                    break;
+                }
+            }
+        }
+
+        function handleMove(clientX, clientY) {
+            if (!draggedSticker) return;
+            const pos = getMousePos(photoCanvas, { clientX, clientY });
+            draggedSticker.x = pos.x;
+            draggedSticker.y = pos.y;
+            renderDecorationCanvas();
+        }
+
+        function handleEnd() {
+            draggedSticker = null;
+        }
+
+        // อีเวนต์ดักจับสำหรับ เมาส์ (PC)
+        photoCanvas.addEventListener('mousedown', (e) => handleStart(e.clientX, e.clientY));
+        window.addEventListener('mousemove', (e) => handleMove(e.clientX, e.clientY));
+        window.addEventListener('mouseup', handleEnd);
+
+        // อีเวนต์ดักจับสำหรับ นิ้วสัมผัส (มือถือ)
+        photoCanvas.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 1) handleStart(e.touches[0].clientX, e.touches[0].clientY);
+        });
+        window.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 1) handleMove(e.touches[0].clientX, e.touches[0].clientY);
+        });
+        window.addEventListener('touchend', handleEnd);
+
+
+        // --- 6. ปุ่มเปลี่ยนโหมดถอยกลับ และ ปุ่มดาวน์โหลดรูปภาพ ---
+        backBtn.addEventListener('click', () => {
+            // สลับกลับไปหน้าจอกล้องสด
+            decorationZone.style.display = 'none';
+            liveZone.style.display = 'flex';
         });
 
         downloadBtn.addEventListener('click', () => {
             try {
                 const dataUrl = photoCanvas.toDataURL('image/png');
                 const tempLink = document.createElement('a');
-                tempLink.download = `photobooth-${Date.now()}.png`;
+                tempLink.download = `myphoto-${Date.now()}.png`;
                 tempLink.href = dataUrl;
                 document.body.appendChild(tempLink);
                 tempLink.click();
