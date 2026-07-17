@@ -42,6 +42,7 @@
             background: white;
             padding: 15px;
             border-radius: 16px;
+            border: 3px solid #000000;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
             text-align: center;
             width: 100%;
@@ -200,7 +201,7 @@
 
 <body>
 
-    <h1>📸 AI Web Photo Booth</h1>
+    <h1>📸 Photo Booth</h1>
 
     <div class="container">
         
@@ -215,17 +216,17 @@
             <div class="toolbar">
                 <div id="smart-draw-btn" class="smart-btn">
                     <span id="color-dot" class="color-indicator" style="background-color: #00f2fe; display: none;"></span>
-                    <span id="btn-text">🖌️ โหมดวาดรูป: ปิด</span>
+                    <span id="btn-text"><img src="asset/paint.png" alt="Paint" style="width: 40px; height: 40px;"></span>
                     <input type="color" id="custom-color" value="#00f2fe">
                 </div>
-                <button id="clear-btn" class="btn-clear">🗑️ ล้างเส้น</button>
-                <button id="snap-btn" class="btn-snap">📸 ถ่ายรูป!</button>
+                <button id="clear-btn" class="btn-clear"><img src="asset/trash.png" alt="Clear" style="width: 40px; height: 40px;"></button>
+                <button id="snap-btn" class="btn-snap"><img src="asset/camera.png" alt="Snap" style="width: 40px; height: 40px;"></button>
             </div>
         </div>
 
         <!-- 🎨 โหมดที่ 2: หน้าจอตกแต่งภาพหลังถ่ายเสร็จ -->
         <div id="decoration-zone" class="box">
-            <h3>2. Decoration Mode (แต่งรูปกัน!)</h3>
+            <h3>2. Customize</h3>
             <p style="font-size: 0.85rem; color: #666; margin: 0 0 10px 0;">💡 คลิกที่สติกเกอร์เพื่อเพิ่ม แล้วใช้นิ้ว/เมาส์ลากย้ายตำแหน่งบนรูปได้เลย</p>
             
             <div class="view-wrapper">
@@ -426,13 +427,13 @@
             smartDrawBtn.style.borderColor = color;
             const textColor = getContrastColor(color);
             smartDrawBtn.style.color = textColor;
-            btnText.textContent = "👌 จีบนิ้วเพื่อวาด / คลิกเปลี่ยนสี";
+            btnText.innerHTML = '<img src="asset/ok.png" alt="Change color" style="width: 40px; height: 40px;">';
         }
 
         clearBtn.addEventListener('click', () => {
             drawingPoints = []; isDrawing = false; isDrawMode = false; smoothedX = null; smoothedY = null;
             smartDrawBtn.style.backgroundColor = "#e9ecef"; smartDrawBtn.style.borderColor = "#ced4da"; smartDrawBtn.style.color = "#495057";
-            btnText.textContent = "🖌️ โหมดวาดรูป: ปิด"; colorDot.style.display = "none";
+            btnText.innerHTML = '<img src="asset/paint.png" alt="Paint" style="width: 40px; height: 40px;">'; colorDot.style.display = "none";
         });
 
         // --- 3. 📸 ระบบถ่ายภาพ และสลับเข้าสู่ "โหมดตกแต่ง" ---
